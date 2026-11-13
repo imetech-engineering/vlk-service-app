@@ -9,6 +9,7 @@ import {
 } from './vlk.js';
 import { Smp } from './smp.js';
 
+export const APP_VERSION = '0.2.0'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -943,6 +944,7 @@ $('fw-go').onclick = async () => {
 };
 
 // ------------------------------------------------------------------ start
+$('app-ver').textContent = `App-versie ${APP_VERSION}`;
 setConnected(false);
 renderRuns();
 renderCal();
