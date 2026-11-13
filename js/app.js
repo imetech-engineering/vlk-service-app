@@ -799,10 +799,10 @@ async function showStatusKey(fresh) {
   if (fresh && !(await confirmDlg('Nieuwe statussleutel maken? De gateway kan de status pas weer lezen als hij de nieuwe sleutel heeft.', 'Nieuwe sleutel'))) return;
   const k = await req(OP.STATUS_KEY, new Uint8Array([fresh ? 1 : 0]));
   if (k.length !== 16) { snack('Deze print heeft geen statussleutel'); return; }
-  const line = `let STATUS_KEY = "${hex(k)}";`;
+  const key = hex(k);
   $('skey-line').hidden = false;
-  $('skey-line').textContent = line;
-  navigator.clipboard?.writeText(line).then(() => snack('Regel voor het gatewayscript gekopieerd')).catch(() => {});
+  $('skey-line').textContent = key;
+  navigator.clipboard?.writeText(key).then(() => snack('Sleutel gekopieerd')).catch(() => {});
 }
 $('skey-show').onclick = () => showStatusKey(false);
 $('skey-new').onclick = () => showStatusKey(true);
