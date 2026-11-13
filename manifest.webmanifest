@@ -1,0 +1,16 @@
+{
+  "name": "VLK Service - Vlakkelichtkoepel besturing",
+  "short_name": "VLK Service",
+  "description": "Service, kalibratie, duurtest en eindtest van de Vlakkelichtkoepel besturing RevB (IMeTech Engineering)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b3d75",
+  "theme_color": "#0b3d75",
+  "lang": "nl",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
