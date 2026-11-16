@@ -17,7 +17,7 @@ export const OP = {
   LOG_COUNT: 0x20, LOG_GET: 0x21, LOG_CLEAR: 0x22,
   REM_LIST: 0x30, REM_ADD: 0x31, REM_DEL: 0x32, REM_CLEAR: 0x33, PAIR: 0x34,
   STREAM: 0x40, DUUR: 0x41, COUNTERS: 0x42, CLEAR_FAULTS: 0x43,
-  SELFTEST: 0x50, SIM: 0x60, REBOOT: 0x70, SET_PIN: 0x71, STATUS_KEY: 0x72, FORGET_PHONES: 0x73,
+  SELFTEST: 0x50, SIM: 0x5f, REBOOT: 0x70, SET_PIN: 0x71, STATUS_KEY: 0x72, FORGET_PHONES: 0x73,
   UNLOCK: 0x74, FACTORY: 0x75,
 };
 export const ROLE = { NONE: 0, INSTALLER: 1, IMETECH: 2 };
@@ -191,7 +191,8 @@ export class VlkDevice extends EventTarget {
   get connected() { return !!this.dev?.gatt.connected; }
 
   onResp(b) {
-    if (b[0] >= 0xe0) {
+    // alleen 0xE0..0xE2 zijn gebeurtenissen; antwoorden van opcodes 0x70+ beginnen met 0xF0+
+    if (b[0] >= 0xe0 && b[0] <= 0xe2) {
       if (b[0] === 0xe0) this.dispatchEvent(new CustomEvent('status', { detail: decodeStatus(b, 1) }));
       else if (b[0] === 0xe1) this.dispatchEvent(new CustomEvent('motor', { detail: { ev: b[1], arg: b[2] } }));
       else if (b[0] === 0xe2) this.dispatchEvent(new CustomEvent('text', { detail: new TextDecoder().decode(b.slice(1)) }));
