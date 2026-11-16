@@ -168,7 +168,9 @@ export class VlkDevice extends EventTarget {
 
   async connect() {
     this.dev = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'VLK-' }, { services: [UUID_SVC] }],
+      // alleen op de service-UUID: die zendt de print alleen uit als het servicevenster open is,
+      // dus buiten het venster staat hij niet in de lijst (naam kan door de telefoon gecachet zijn)
+      filters: [{ services: [UUID_SVC] }],
       optionalServices: [UUID_SVC, UUID_SMP_SVC],
     });
     this.dev.addEventListener('gattserverdisconnected', () => this.dispatchEvent(new Event('disconnected')));

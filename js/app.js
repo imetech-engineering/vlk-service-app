@@ -214,7 +214,12 @@ $('btn-connect').onclick = async () => {
   } catch (e) {
     dev = null;
     // alleen zelf annuleren in de keuzelijst stil laten; andere fouten altijd tonen
-    if (!(e.name === 'NotFoundError' && /cancel/i.test(e.message))) snack(`Verbinden mislukt: ${e.name}: ${e.message}`, null, null, 10000);
+    if (e.name === 'NotFoundError' && /cancel/i.test(e.message)) return;
+    if (e.name === 'NetworkError' || /connect|gatt/i.test(e.message)) {
+      snack('Print reageert niet. Staat het servicevenster open? Servicetoets 3 s vasthouden tot 2 piepjes, dan opnieuw Verbinden.', null, null, 10000);
+    } else {
+      snack(`Verbinden mislukt: ${e.name}: ${e.message}`, null, null, 10000);
+    }
   }
 };
 $('btn-demo').onclick = async () => { dev = new DemoDevice(); await onConnected(); };
