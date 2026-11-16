@@ -736,7 +736,9 @@ $('sim-apply').onclick = async () => {
   const send = (what, v) => { const b = new Uint8Array(3); b[0] = what; new DataView(b.buffer).setUint16(1, v, true); return req(OP.SIM, b); };
   await send(1, Number($('sim-rain').value));
   await send(2, Number($('sim-accu').value));
-  await send(3, Number($('sim-pos').value));
+  // positie alleen als hij is ingevuld: anders zet elke Toepassen de gesimuleerde koepel op 0 %
+  // terwijl de besturing denkt dat hij open is (dicht rijden geeft dan 'geen motorstroom')
+  if ($('sim-pos').value !== '') { await send(3, Number($('sim-pos').value)); $('sim-pos').value = ''; }
   await send(4, Number($('sim-block').value));
   snack('Simulatie bijgewerkt');
 };
