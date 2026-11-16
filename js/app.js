@@ -682,6 +682,7 @@ const CFG_UI = [
   ['rain_heat_s', 'Regensensor: verwarmen na openen bij nat (s)', 'number', null, 'Nog nat daarna = bewust open bij regen: sensor uit. 0 = sensor blijft aan.'],
   ['rain_recheck_min', 'Regensensor: daarna opnieuw kijken elke (min)', 'number', null, '0 = pas bij de volgende OPEN. Zuinig: sensor is tussendoor uit.'],
   ['rain_check_s', 'Regensensor: per controle max. verwarmen (s)', 'number', null, 'Droog = weer bewaken, nog nat = weer uit.'],
+  ['rain_dry_interval_s', 'Regensensor: bij droog meten elke (s)', 'number', null, 'Sensor kort aan (ca. 5 s), daartussen uit. 0 = continu aan (direct sluiten, ca. 0,9 mA).'],
   ['duty_max_s', 'Inschakelduur: max. aan (s)', 'number', null, 'KSA S12: 180 s per 600 s.'],
   ['duty_window_s', 'Inschakelduur: venster (s)', 'number'],
   ['reverse_pause_ms', 'Pauze bij omkeren (ms)', 'number'],
