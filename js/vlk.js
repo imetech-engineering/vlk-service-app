@@ -43,7 +43,7 @@ export const EVL = {
 const STOP_REASON = ['eindherkenning', 'STOP', 'dodemans los', 'veiligheid'];
 const RES = ['gestopt', 'eindstand', 'eindstand zonder stijging', 'te vroeg gestopt', 'stond al in eindstand', 'blokkade', 'max. looptijd'];
 
-// ---- struct vlk_cfg (32 bytes, firmware/src/config.h) ----
+// ---- struct vlk_cfg (36 bytes, versie 2, firmware/src/config.h) ----
 export const CFG_FIELDS = [
   // [naam, offset, type, label, eenheid]
   ['version', 0, 'u8'], ['accu_type', 1, 'u8'], ['accu_block_mv', 2, 'u16'], ['accu_release_mv', 4, 'u16'],
@@ -52,8 +52,9 @@ export const CFG_FIELDS = [
   ['duty_window_s', 16, 'u16'], ['duty_max_s', 18, 'u16'], ['reverse_pause_ms', 20, 'u16'],
   ['idle_scan_profile', 22, 'u8'], ['duurtest', 23, 'u8'], ['duurtest_interval_s', 24, 'u16'],
   ['temp_max_c', 26, 'u16'], ['service_pin', 28, 'u32'],
+  ['rain_recheck_min', 32, 'u16'], ['rain_check_s', 34, 'u16'],
 ];
-export const CFG_SIZE = 32;
+export const CFG_SIZE = 36;
 
 function rd(dv, off, t) {
   return t === 'u8' ? dv.getUint8(off) : t === 'u16' ? dv.getUint16(off, true) : dv.getUint32(off, true);
@@ -237,9 +238,9 @@ export class DemoDevice extends EventTarget {
     super();
     this.demo = true;
     this.name = 'VLK-DEMO01';
-    this.cfg = { version: 1, accu_type: 0, accu_block_mv: 11900, accu_release_mv: 12400, rain_present: 1,
+    this.cfg = { version: 2, accu_type: 0, accu_block_mv: 11900, accu_release_mv: 12400, rain_present: 1,
       aux12_in_use: 0, aux24_in_use: 0, autoclose_deadman: 0, deadman_timeout_ms: 1000, confirm_retry_s: 300,
-      rain_heat_s: 300, duty_window_s: 600, duty_max_s: 180, reverse_pause_ms: 500, idle_scan_profile: 3,
+      rain_heat_s: 300, rain_recheck_min: 60, rain_check_s: 120, duty_window_s: 600, duty_max_s: 180, reverse_pause_ms: 500, idle_scan_profile: 3,
       duurtest: 0, duurtest_interval_s: 300, temp_max_c: 85, service_pin: 0 };
     this.es = [esDefaults(), esDefaults(), esDefaults()];
     this.role = 1;
