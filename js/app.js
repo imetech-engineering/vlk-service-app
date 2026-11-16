@@ -225,7 +225,7 @@ function renderStatus() {
   add('Motorstroom', moving ? `${s.ma} mA` : '-', `profiel: ${PROFILES[s.profile]}`);
   add('Accu', s.accu ? `${(s.accu / 1000).toFixed(2)} V` : 'geen', s.flags & FLAGS.ACCU_LOW ? 'te laag' : '', s.flags & FLAGS.ACCU_LOW ? 'err' : '');
   add('Temperatuur', s.ntc === -32768 ? '-' : `${(s.ntc / 10).toFixed(1)} °C`, `MCU ${s.die === -128 ? '-' : s.die + ' °C'}`);
-  add('Regen', s.rain === 255 ? 'geen sensor' : s.rain ? 'nat' : 'droog', s.flags & FLAGS.RAIN_EP ? 'episode actief' : '');
+  add('Regen', s.rain === 255 ? 'geen sensor' : s.rain === 2 ? 'sensor uit' : s.rain ? 'nat' : 'droog', s.flags & FLAGS.RAIN_EP ? 'episode actief' : '');
   const f = FAULTS.filter(([b]) => s.faults & b).map(([, n]) => n);
   add('Fouten', f.length ? f.length : 'geen', f.join(', '), f.length ? 'err' : 'ok');
   const flags = [['servicevenster', FLAGS.SERVICE], ['duurtest', FLAGS.DUURTEST], ['dodemans (DIP 4)', FLAGS.DEADMAN],
