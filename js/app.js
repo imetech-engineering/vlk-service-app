@@ -201,6 +201,7 @@ async function onConnected() {
 
 $('btn-connect').onclick = async () => {
   if (dev) { dev.disconnect(); return; }
+  if (navigator.brave) { snack('Brave blokkeert Bluetooth voor websites. Open de app in Chrome (Android of pc).', null, null, 10000); return; }
   if (!navigator.bluetooth) { snack('Web Bluetooth werkt hier niet. Gebruik Chrome op Android of op de pc.'); return; }
   try {
     if (navigator.bluetooth.getAvailability && !(await navigator.bluetooth.getAvailability())) {

@@ -1,5 +1,5 @@
 // Service worker: app offline beschikbaar (op locatie vaak geen bereik). Versie ophogen bij elke release.
-const CACHE = 'vlk-service-v0.2.1';
+const CACHE = 'vlk-service-v0.2.2';
 const FILES = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/vlk.js', 'js/endstop.js', 'js/chart.js',
   'js/smp.js', 'js/icons.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES))); self.skipWaiting(); });
