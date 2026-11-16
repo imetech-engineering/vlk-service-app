@@ -203,12 +203,17 @@ $('btn-connect').onclick = async () => {
   if (dev) { dev.disconnect(); return; }
   if (!navigator.bluetooth) { snack('Web Bluetooth werkt hier niet. Gebruik Chrome op Android of op de pc.'); return; }
   try {
+    if (navigator.bluetooth.getAvailability && !(await navigator.bluetooth.getAvailability())) {
+      snack('Bluetooth is niet beschikbaar voor de browser. Zet Bluetooth aan en geef de browser toestemming voor apparaten in de buurt (Android: ook Locatie aan).', null, null, 10000);
+      return;
+    }
     snack('Kies de print (VLK-...). Open eerst het servicevenster: servicetoets 3 s vasthouden.', null, null, 8000);
     dev = await new VlkDevice().connect();
     await onConnected();
   } catch (e) {
     dev = null;
-    if (e.name !== 'NotFoundError') snack(`Verbinden mislukt: ${e.message}`);
+    // alleen zelf annuleren in de keuzelijst stil laten; andere fouten altijd tonen
+    if (!(e.name === 'NotFoundError' && /cancel/i.test(e.message))) snack(`Verbinden mislukt: ${e.name}: ${e.message}`, null, null, 10000);
   }
 };
 $('btn-demo').onclick = async () => { dev = new DemoDevice(); await onConnected(); };
