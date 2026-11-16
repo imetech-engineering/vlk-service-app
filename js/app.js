@@ -10,7 +10,7 @@ import {
 import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
 
-export const APP_VERSION = '0.3.0'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.1'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -105,7 +105,7 @@ const labels = {
   'clear-faults': ['reset', 'Fouten wissen'], 'reboot': ['power', 'Print herstarten'],
   'forget-phones': ['bt', 'Telefoons vergeten'], 'imt-unlock': ['key', 'Ontgrendelen'], 'factory': ['reset', 'Fabrieksinstellingen'],
   'skey-show': ['key', 'Sleutel tonen'], 'skey-new': ['reset', 'Nieuwe sleutel'],
-  'rem-refresh': ['reset', 'Vernieuwen'], 'rem-read': ['key', 'Sleutel uitlezen'],
+  'rem-refresh': ['reset', 'Vernieuwen'],
   'rem-gen': ['key', 'Sleutel maken (gateway)'], 'rem-pair-key': ['plus', 'Koppelen'],
   'rem-pair': ['plus', 'Koppelmodus 30 s'], 'rem-clear': ['trash', 'Alle koppelingen wissen'],
   'duur-save': ['save', 'Toepassen'], 'log-load': ['download', 'Laden'], 'log-export': ['download', 'CSV'],
@@ -126,6 +126,7 @@ function setConnected(on) {
   if (on) $('fw-go').disabled = !fwImage || dev.demo;
   $('cal-start').disabled = !on || wiz.on;
   eindtest?.refresh();
+  if (typeof renderAb === 'function') renderAb();
 }
 
 // ------------------------------------------------------------------ rollen
@@ -774,6 +775,7 @@ async function loadRemotes() {
     list.push({ idx: b[o], mac: [...b.slice(o + 2, o + 8)].reverse().map((x) => x.toString(16).padStart(2, '0').toUpperCase()).join(':'), key: !!b[o + 8] });
   }
   renderRemotes(list);
+  return list;
 }
 function renderRemotes(list) {
   const box = $('rem-list');
@@ -840,31 +842,112 @@ $('rem-pair-key').onclick = () => pairWithKey($('rem-key').value).catch((e) => s
 
 const SHELLY_SVC = 'de8a5aac-a99b-c315-0c80-60d4cbb51225';
 const SHELLY_KEY = 'eb0fb41b-af4b-4724-a6f9-974f55aba81a';
-$('rem-read').onclick = async () => {
-  if (dev?.demo) { $('rem-key').value = hex(crypto.getRandomValues(new Uint8Array(16))); return pairWithKey($('rem-key').value); }
-  let btn;
+const SHELLY_PASSKEY = '0ffb7104-860c-49ae-8989-1f946d5f6c03';
+
+// Afstandsbediening koppelen in 3 stappen, zonder Shelly-app: de app zet zelf de versleuteling
+// op de knop (nieuwe pincode, Shelly BLE-documentatie: Passkey-karakteristiek), leest de sleutel
+// en zet de print 60 s in koppelmodus met die sleutel. De tester drukt daarna één knop.
+const ab = { step: 0, msg: '', pin: '', err: '' };
+async function abReadKey() {
+  if (dev?.demo) { await new Promise((r) => setTimeout(r, 1200)); ab.pin = '123456'; return crypto.getRandomValues(new Uint8Array(16)); }
+  const btn = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'SBBT' }], optionalServices: [SHELLY_SVC] });
   try {
-    // alleen Shelly BLU-knoppen (naam begint met SBBT, bijv. SBBT-104C... voor de RC Button 4 ZB)
-    btn = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'SBBT' }], optionalServices: [SHELLY_SVC] });
-    const srv = await btn.gatt.connect();
-    let chr;
-    try {
-      chr = await (await srv.getPrimaryService(SHELLY_SVC)).getCharacteristic(SHELLY_KEY);
-    } catch {
-      for (const s of await srv.getPrimaryServices()) {
-        try { chr = await s.getCharacteristic(SHELLY_KEY); break; } catch { /* volgende */ }
-      }
+    abMsg('Verbinden met de knop...');
+    let srv = await btn.gatt.connect();
+    let svc = await srv.getPrimaryService(SHELLY_SVC);
+    // nieuwe pincode = nieuwe sleutel (zet versleuteling aan, ook als hij al aan stond)
+    const pin = 100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000);
+    const p = new Uint8Array(4);
+    new DataView(p.buffer).setUint32(0, pin, true);
+    abMsg('Versleuteling instellen... Vraagt je telefoon om te koppelen? Tik dan op Koppelen.');
+    await (await svc.getCharacteristic(SHELLY_PASSKEY)).writeValueWithResponse(p);
+    ab.pin = String(pin);
+    await new Promise((r) => setTimeout(r, 1500));   // knop maakt de nieuwe sleutel
+    abMsg('Sleutel ophalen...');
+    let key;
+    for (let i = 0; i < 3 && !key; i++) {
+      try {
+        if (!btn.gatt.connected) { srv = await btn.gatt.connect(); svc = await srv.getPrimaryService(SHELLY_SVC); }
+        key = new Uint8Array((await (await svc.getCharacteristic(SHELLY_KEY)).readValue()).buffer);
+      } catch (e) { if (i === 2) throw e; await new Promise((r) => setTimeout(r, 1000)); }
     }
-    if (!chr) throw new Error('sleutel niet gevonden op dit apparaat');
-    const v = new Uint8Array((await chr.readValue()).buffer);
+    return key;
+  } finally {
     btn.gatt.disconnect();
-    $('rem-key').value = hex(v);
-    await pairWithKey(hex(v));
-  } catch (e) {
-    btn?.gatt?.disconnect();
-    if (e.name !== 'NotFoundError') snack(`Uitlezen mislukt: ${e.message}`);
   }
-};
+}
+function abMsg(t) { ab.msg = t; renderAb(); }
+function renderAb() {
+  const root = $('ab-root');
+  if (!root) return;
+  root.innerHTML = '';
+  const steps = ['Knop in koppelmodus', 'Knop beveiligen', 'Eén keer drukken'];
+  const head = el('div', 'ab-steps');
+  steps.forEach((t, i) => head.append(el('div', `ab-step ${ab.step === i + 1 ? 'on' : ab.step > i + 1 ? 'done' : ''}`, `<b>${i + 1}</b><span>${t}</span>`)));
+  if (ab.step > 0 && ab.step < 4) root.append(head);
+  const body = el('div', 'wz-text');
+  const row = el('div', 'row wrap wz-btns');
+  const mk = (cls, icon, text, fn) => { const b = el('button', cls, `${ICON[icon] || ''}<span>${text}</span>`); b.onclick = fn; b.disabled = !dev; row.append(b); return b; };
+  if (ab.step === 0) {
+    body.innerHTML = 'Koppel een Shelly BLU RC Button 4 (ZB) in drie stappen. Je hebt alleen deze app nodig.';
+    mk('primary big', 'plus', 'Koppelen starten', () => { ab.step = 1; ab.err = ''; renderAb(); });
+  } else if (ab.step === 1) {
+    body.innerHTML = '<p>Druk <b>4x kort</b> op een knop van de afstandsbediening.</p><p>Het lampje gaat <b>blauw knipperen</b> (1 minuut).</p><p class="muted small-text">Oudere RC Button 4 (zonder ZB): een knop 10 s vasthouden.</p>';
+    mk('primary big', 'check', 'Hij knippert blauw', () => { ab.step = 2; ab.msg = ''; renderAb(); });
+  } else if (ab.step === 2) {
+    body.innerHTML = `<p>Tik op <b>Knop zoeken</b> en kies de knop in de lijst (naam begint met <b>SBBT</b>).</p>
+      <p class="muted small-text">De knop krijgt een nieuwe sleutel. Zat hij ook in de Shelly-app of aan een gateway, koppel hem daar daarna opnieuw.</p>
+      ${ab.msg ? `<p><b>${ab.msg}</b></p>` : ''}${ab.err ? `<p class="err-text">${ab.err}</p>` : ''}`;
+    const b = mk('primary big', 'bt', 'Knop zoeken', async () => {
+      b.disabled = true; ab.err = '';
+      try {
+        const key = await abReadKey();
+        if (!key || key.length !== 16) throw new Error('geen geldige sleutel ontvangen');
+        abMsg('Print in koppelmodus zetten...');
+        const before = (await loadRemotes()).length;
+        const p = new Uint8Array(17); p[0] = 60; p.set(key, 1);
+        await req(OP.PAIR, p);
+        ab.before = before; ab.until = Date.now() + 60000; ab.step = 3; ab.msg = '';
+        renderAb();
+        abWait();
+      } catch (e) {
+        ab.msg = '';
+        ab.err = e.name === 'NotFoundError' ? (/cancel/i.test(e.message) ? '' : 'Geen knop gevonden. Knippert hij nog blauw? Anders weer 4x drukken.')
+          : `Niet gelukt: ${e.message}. Druk de knop weer 4x en probeer opnieuw.`;
+        renderAb();
+      }
+    });
+    mk('ghost', 'back', 'Terug', () => { ab.step = 1; renderAb(); });
+  } else if (ab.step === 3) {
+    const left = Math.max(0, Math.round((ab.until - Date.now()) / 1000));
+    body.innerHTML = `<p>Druk nu <b>één keer</b> op een knop van de afstandsbediening.</p>
+      <p class="muted">De print piept 2x als hij gekoppeld is. Nog ${left} s.</p>`;
+    mk('ghost', 'x', 'Stoppen', () => { ab.step = 0; renderAb(); });
+  } else if (ab.step === 4) {
+    body.innerHTML = `<div class="wz-result good"><h3>Gekoppeld</h3><p class="muted">Knop 1 OPEN, 2 DICHT, 3 STOP, 4 reserve.</p></div>
+      <p class="muted small-text">Pincode van deze knop: <b>${ab.pin}</b> (alleen nodig als je hem ook in de Shelly-app wilt gebruiken).</p>`;
+    mk('primary', 'plus', 'Nog een koppelen', () => { ab.step = 1; ab.err = ''; renderAb(); });
+    mk('ghost', 'check', 'Klaar', () => { ab.step = 0; renderAb(); });
+  } else if (ab.step === 5) {
+    body.innerHTML = '<div class="wz-result bad"><h3>Niet gekoppeld</h3><p class="muted">Binnen 60 s kwam er geen knopdruk binnen.</p></div>';
+    mk('primary', 'reset', 'Opnieuw', () => { ab.step = 1; renderAb(); });
+  }
+  root.append(body, row);
+}
+async function abWait() {
+  while (ab.step === 3) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (ab.step !== 3) return;
+    if (dev?.demo && Date.now() > ab.until - 55000) { ab.step = 4; renderAb(); return; }
+    try {
+      const list = await loadRemotes();
+      if (list.length > ab.before) { ab.step = 4; renderAb(); return; }
+    } catch { /* volgende keer */ }
+    if (Date.now() > ab.until) { ab.step = 5; renderAb(); return; }
+    renderAb();
+  }
+}
+renderAb();
 
 // ------------------------------------------------------------------ log en tellers
 async function loadCounters() {

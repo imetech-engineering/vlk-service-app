@@ -187,17 +187,11 @@
         <div id="rem-list" class="list"></div>
       </div>
       <div class="panel">
-        <h3>Shelly-knop toevoegen</h3>
-        <ol class="steps">
-          <li>Zet in de Shelly-app de versleuteling van de knop aan (pincode van 6 cijfers).</li>
-          <li>Zet de knop in Bluetooth-koppelmodus tot hij blauw knippert: RC Button 4 ZB 4x kort op een knop drukken (1 min), oudere RC Button 4 ruim 10 s vasthouden.</li>
-          <li>Tik op <b>Sleutel uitlezen</b>, kies de knop (naam begint met <b>SBBT</b>, bijv. SBBT-104C...) en vul de pincode van de knop in.</li>
-          <li>Druk daarna een knop op de afstandsbediening in: de print koppelt hem (2 piepjes).</li>
-        </ol>
-        <button id="rem-read" class="primary"></button>
+        <h3>Afstandsbediening koppelen</h3>
+        <div id="ab-root" class="wz"></div>
       </div>
-      <div class="panel">
-        <h3>Met een bekende sleutel</h3>
+      <details class="panel">
+        <summary><b>Gevorderd: koppelen met een bekende sleutel</b></summary>
         <p class="muted small-text">Voor de Shelly-gateway of een knop waarvan de sleutel al bekend is. Na <b>Koppelen</b> heb je 60 s om een knop in te drukken.</p>
         <div class="row wrap">
           <input id="rem-key" class="mono grow" placeholder="32 hex-tekens">
@@ -205,7 +199,7 @@
           <button id="rem-pair-key" class="primary"></button>
         </div>
         <div id="gw-line" class="code" hidden></div>
-      </div>
+      </details>
       <div class="panel">
         <h3>Status naar de Shelly-gateway</h3>
         <p class="muted small-text">De print zendt zijn status versleuteld uit (BTHome). Voeg de print in de Shelly-app toe als BTHome-apparaat en vul deze sleutel in als <b>bindkey</b> (encryption key). Na een nieuwe sleutel moet je hem daar ook opnieuw invullen.</p>
