@@ -10,7 +10,7 @@ import {
 import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
 
-export const APP_VERSION = '0.3.1'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.2'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -212,7 +212,7 @@ $('btn-connect').onclick = async () => {
       snack('Bluetooth is niet beschikbaar voor de browser. Zet Bluetooth aan en geef de browser toestemming voor apparaten in de buurt (Android: ook Locatie aan).', null, null, 10000);
       return;
     }
-    snack('Kies de print (VLK-...). Open eerst het servicevenster: servicetoets 3 s vasthouden.', null, null, 8000);
+    snack('Kies de print (VLK-...). Open eerst het servicevenster: druk de servicetoets op de print in (2 piepjes).', null, null, 8000);
     dev = await new VlkDevice().connect();
     await onConnected();
   } catch (e) {
@@ -220,7 +220,7 @@ $('btn-connect').onclick = async () => {
     // alleen zelf annuleren in de keuzelijst stil laten; andere fouten altijd tonen
     if (e.name === 'NotFoundError' && /cancel/i.test(e.message)) return;
     if (e.name === 'NetworkError' || /connect|gatt/i.test(e.message)) {
-      snack('Print reageert niet. Staat het servicevenster open? Servicetoets 3 s vasthouden tot 2 piepjes, dan opnieuw Verbinden.', null, null, 10000);
+      snack('Print reageert niet. Staat het servicevenster open? Druk de servicetoets op de print in (2 piepjes) en tik opnieuw op Verbinden.', null, null, 10000);
     } else {
       snack(`Verbinden mislukt: ${e.name}: ${e.message}`, null, null, 10000);
     }

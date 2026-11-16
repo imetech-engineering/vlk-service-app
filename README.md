@@ -16,7 +16,7 @@ bruikbaar zonder internet.
 
 ## Verbinden
 
-1. Servicetoets op de print 3 s vasthouden (servicevenster, 5 min).
+1. Servicetoets op de print indrukken (servicevenster, 5 min, 2 piepjes).
 2. In de app **Verbinden**, kies `VLK-xxxxxx` (naam staat op het label).
 3. Pincode van het label invullen bij het koppelen.
 
