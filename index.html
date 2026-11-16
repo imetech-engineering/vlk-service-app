@@ -56,7 +56,8 @@
           <button class="big stop" id="b-stop"></button>
           <button class="big" id="b-close"></button>
         </div>
-        <label class="check"><input type="checkbox" id="hold-mode"> Vasthouden om te rijden (dodemans, loslaten = STOP)</label>
+        <label class="check"><input type="checkbox" id="hold-mode"> Vasthouden om te rijden met deze knoppen (dodemans, loslaten = STOP)</label>
+        <p class="muted small-text">Geldt alleen voor de knoppen hierboven. Dodemans voor de afstandsbediening en de bedrade ingangen zet je met DIP 4 op de print.</p>
       </div>
       <div class="panel">
         <div class="row space"><h3>Opnames</h3><span class="muted small-text">Elke beweging wordt automatisch opgenomen</span></div>
@@ -149,6 +150,12 @@
           <label>Accu (mV) <input id="sim-accu" type="number" value="12800" step="100"></label>
           <label>Positie (%) <input id="sim-pos" type="number" min="0" max="100" placeholder="niet wijzigen"></label>
           <label>Blokkade <select id="sim-block"><option value="0">uit</option><option value="1">aan</option></select></label>
+        </div>
+        <div class="row wrap sim-dip"><span class="muted small-text">DIP</span>
+          <label class="inline"><input type="checkbox" id="sim-dip1"> 1</label>
+          <label class="inline"><input type="checkbox" id="sim-dip2"> 2</label>
+          <label class="inline"><input type="checkbox" id="sim-dip3"> 3 (12 V)</label>
+          <label class="inline"><input type="checkbox" id="sim-dip4"> 4 (dodemans)</label>
         </div>
         <button id="sim-apply" class="ghost"></button>
       </div>
@@ -248,12 +255,7 @@
     <section id="tab-test" class="tab" hidden>
       <div class="panel">
         <h3>Eindtest print</h3>
-        <p class="muted small-text">Sluit een motor of testlast aan op M1: de motor draait kort open en dicht. Meet tijdens de test de 12 V- en 24 V-uitgang.</p>
-        <div class="row wrap">
-          <button id="st-start" class="primary"></button>
-          <button id="st-save" class="ghost"></button>
-        </div>
-        <pre id="st-out" class="out"></pre>
+        <div id="wz-root" class="wz"></div>
       </div>
     </section>
 

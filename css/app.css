@@ -118,3 +118,27 @@ dialog::backdrop { background: rgba(0, 0, 0, .4); }
 .legend i.l-block { background: #8b1e1e; }
 details.panel > summary { cursor: pointer; font-weight: 600; }
 details.panel[open] > summary { margin-bottom: 8px; }
+/* eindtest stap voor stap */
+.wz-intro p { margin-top: 0; }
+button.big { padding: 14px 20px; font-size: 16px; min-width: 120px; }
+.wz-prog { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.wz-prog div { height: 100%; background: var(--accent); transition: width .3s; }
+.wz-head h3 { margin-top: 4px; font-size: 20px; }
+.wz-text { margin: 6px 0 10px; }
+.wz-text ul { margin: 6px 0; padding-left: 20px; }
+.wz-live { margin: 10px 0; }
+.wz-live:empty { display: none; }
+.wz-q { font-size: 17px; margin: 12px 0 8px; }
+.wz-btns { margin: 12px 0; }
+.wz-nav { border-top: 1px solid var(--grid); padding-top: 10px; margin-top: 8px; }
+.wz-note { min-height: 20px; }
+.ok-text { color: var(--ok); font-size: 18px; }
+.err-text { color: var(--err); }
+.wz-result { border-radius: var(--radius); padding: 14px; margin-bottom: 10px; color: #fff; }
+.wz-result.good { background: var(--ok); }
+.wz-result.bad { background: var(--err); }
+.wz-result .muted { color: rgba(255, 255, 255, .85); margin: 0; }
+.wz-res { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; cursor: pointer; }
+.wz-res.err b { color: var(--err); }
+.wz-res.ok b { color: var(--ok); }
+.sim-dip { margin-top: 8px; gap: 14px; }

@@ -17,7 +17,7 @@ export const OP = {
   LOG_COUNT: 0x20, LOG_GET: 0x21, LOG_CLEAR: 0x22,
   REM_LIST: 0x30, REM_ADD: 0x31, REM_DEL: 0x32, REM_CLEAR: 0x33, PAIR: 0x34,
   STREAM: 0x40, DUUR: 0x41, COUNTERS: 0x42, CLEAR_FAULTS: 0x43,
-  SELFTEST: 0x50, SIM: 0x5f, REBOOT: 0x70, SET_PIN: 0x71, STATUS_KEY: 0x72, FORGET_PHONES: 0x73,
+  SELFTEST: 0x50, TEST: 0x51, SIM: 0x5f, REBOOT: 0x70, SET_PIN: 0x71, STATUS_KEY: 0x72, FORGET_PHONES: 0x73,
   UNLOCK: 0x74, FACTORY: 0x75,
 };
 export const ROLE = { NONE: 0, INSTALLER: 1, IMETECH: 2 };
@@ -390,12 +390,36 @@ export class DemoDevice extends EventTarget {
           'Motor OPEN 300 ms: gem 310 mA OK', 'Motor DICHT 300 ms: gem 305 mA OK', 'EINDTEST klaar: GESLAAGD (foutbits 0x000)']
           .forEach((t, i) => setTimeout(() => this.dispatchEvent(new CustomEvent('text', { detail: t })), 400 * (i + 1)));
         return new Uint8Array(0);
+      case OP.TEST: {
+        if (this.role < 2) throw new Error(ERRNO[1]);
+        const what = p[0], val = p[1] | (p[2] << 8);
+        if (what === 0) { this.testT0 = val ? performance.now() : 0; return new Uint8Array(0); }
+        if (what === 8) {
+          const b = new Uint8Array(6); const dv = new DataView(b.buffer);
+          dv.setUint16(0, 300 + Math.round(Math.random() * 20), true); dv.setUint16(2, 880, true); dv.setUint16(4, 3, true);
+          await new Promise((r) => setTimeout(r, 500));
+          return b;
+        }
+        if (what !== 9) return new Uint8Array(0);
+        // demo: ingangen, DIP, regen en afstandsbediening wisselen vanzelf zodat je de stappen kunt doorlopen
+        const t = (performance.now() - (this.testT0 || 0)) / 1000;
+        const b = new Uint8Array(17); const dv = new DataView(b.buffer);
+        dv.setUint16(0, 3300, true); dv.setInt8(2, 24); dv.setUint16(3, this.st.accu, true); dv.setInt16(5, 185, true);
+        const wet = Math.floor(t / 4) % 2 === 1;
+        dv.setInt16(7, wet ? 250 : 2300, true); dv.setUint8(9, wet ? 1 : 0);
+        dv.setUint8(10, 1 << (Math.floor(t / 1.5) % 6));
+        dv.setUint8(11, Math.floor(t / 2) % 2 ? 0x0f : 0);
+        dv.setUint8(12, Math.floor(t / 2) & 0xff); dv.setUint8(13, (Math.floor(t / 2) % 4) + 1);
+        dv.setInt16(14, 2, true); dv.setUint8(16, 1);
+        return b;
+      }
       case OP.SIM: {
         if (this.role < 2) throw new Error(ERRNO[1]);
         const v = p[1] | (p[2] << 8);
         if (p[0] === 1) this.st.rain = v ? 1 : 0;
         if (p[0] === 2) this.st.accu = v;
         if (p[0] === 3) this.posMs = (v / 100) * this.travel;
+        if (p[0] === 5) { this.st.dip = v & 0x0f; this.st.flags = v & 8 ? this.st.flags | FLAGS.DEADMAN : this.st.flags & ~FLAGS.DEADMAN; }
         return new Uint8Array(0);
       }
       case OP.SET_PIN: if (this.role < 2) throw new Error(ERRNO[1]); return new Uint8Array([0x40, 0xe2, 0x01, 0]);

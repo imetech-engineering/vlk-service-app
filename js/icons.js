@@ -25,5 +25,7 @@ export const ICON = {
   rec: s('<circle cx="12" cy="12" r="6" fill="currentColor"/>'),
   hand: s('<path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>'),
   power: s('<path d="M18.4 6.6a9 9 0 1 1-12.8 0M12 2v10"/>'),
+  check: s('<path d="M20 6L9 17l-5-5"/>'),
+  back: s('<path d="M15 18l-6-6 6-6"/>'),
   copy: s('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
 };

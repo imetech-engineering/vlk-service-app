@@ -8,8 +8,9 @@ import {
   decodeCfg, encodeCfg, decodeEs, encodeEs, decodeStatus, decodeLog, describeLog, hex, unhex,
 } from './vlk.js';
 import { Smp } from './smp.js';
+import { initEindtest } from './eindtest.js';
 
-export const APP_VERSION = '0.2.0'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.0'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -26,7 +27,7 @@ let run = null;
 let runSeq = 1;
 let sessionT0 = performance.now();
 let runOffset = 0;
-let selftestLines = [];
+let eindtest = null;
 let logEntries = [];
 let fwImage = null;
 
@@ -108,7 +109,7 @@ const labels = {
   'rem-gen': ['key', 'Sleutel maken (gateway)'], 'rem-pair-key': ['plus', 'Koppelen'],
   'rem-pair': ['plus', 'Koppelmodus 30 s'], 'rem-clear': ['trash', 'Alle koppelingen wissen'],
   'duur-save': ['save', 'Toepassen'], 'log-load': ['download', 'Laden'], 'log-export': ['download', 'CSV'],
-  'log-clear': ['trash', 'Wissen'], 'st-start': ['play', 'Eindtest starten'], 'st-save': ['save', 'Rapport opslaan'],
+  'log-clear': ['trash', 'Wissen'],
   'fw-pick-lbl': ['upload', 'Bestand kiezen'], 'fw-go': ['upload', 'Update starten'],
 };
 for (const [id, [icon, text]] of Object.entries(labels)) $(id).innerHTML = btnHtml(icon, text);
@@ -118,12 +119,13 @@ function setConnected(on) {
   $('btn-connect').innerHTML = on ? btnHtml('x', 'Verbreken') : btnHtml('bt', 'Verbinden');
   $('btn-demo').hidden = on;
   $('conn-sub').textContent = on ? `${dev.name}${dev.demo ? ' (demo)' : ''}` : 'Niet verbonden';
-  if (!on) { info = null; wiz.on = false; renderWiz(); applyRole(); }
+  if (!on) { info = null; wiz.on = false; renderWiz(); applyRole(); eindtest?.reset(); }
   document.querySelectorAll('main button, main input, main select').forEach((e) => {
     if (!e.closest('#tab-calib') && e.id !== 'win') e.disabled = !on;
   });
   if (on) $('fw-go').disabled = !fwImage || dev.demo;
   $('cal-start').disabled = !on || wiz.on;
+  eindtest?.refresh();
 }
 
 // ------------------------------------------------------------------ rollen
@@ -172,6 +174,7 @@ async function onConnected() {
     status = e.detail;
     if (!status.dir) restPos = status.pos;
     renderStatus();
+    syncSimDip();
   });
   dev.addEventListener('samples', (e) => onSamples(e.detail));
   dev.addEventListener('motor', (e) => onMotor(e.detail));
@@ -746,8 +749,19 @@ $('sim-apply').onclick = async () => {
   // terwijl de besturing denkt dat hij open is (dicht rijden geeft dan 'geen motorstroom')
   if ($('sim-pos').value !== '') { await send(3, Number($('sim-pos').value)); $('sim-pos').value = ''; }
   await send(4, Number($('sim-block').value));
+  if (simDipDirty) {
+    const dip = [1, 2, 3, 4].reduce((a, n, i) => a | ($(`sim-dip${n}`).checked ? 1 << i : 0), 0);
+    await send(5, dip);
+    simDipDirty = false;
+  }
   snack('Simulatie bijgewerkt');
 };
+let simDipDirty = false;
+[1, 2, 3, 4].forEach((n) => { $(`sim-dip${n}`).onchange = () => { simDipDirty = true; }; });
+function syncSimDip() {
+  if (simDipDirty || !status) return;
+  [1, 2, 3, 4].forEach((n, i) => { $(`sim-dip${n}`).checked = !!(status.dip & (1 << i)); });
+}
 $('clear-faults').onclick = async () => { await req(OP.CLEAR_FAULTS); snack('Fouten gewist'); };
 $('reboot').onclick = async () => { if (await confirmDlg('Print herstarten?', 'Herstarten')) req(OP.REBOOT).catch(() => {}); };
 
@@ -830,7 +844,8 @@ $('rem-read').onclick = async () => {
   if (dev?.demo) { $('rem-key').value = hex(crypto.getRandomValues(new Uint8Array(16))); return pairWithKey($('rem-key').value); }
   let btn;
   try {
-    btn = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SHELLY_SVC] });
+    // alleen Shelly BLU-knoppen (naam begint met SBBT, bijv. SBBT-104C... voor de RC Button 4 ZB)
+    btn = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'SBBT' }], optionalServices: [SHELLY_SVC] });
     const srv = await btn.gatt.connect();
     let chr;
     try {
@@ -905,22 +920,14 @@ $('log-clear').onclick = async () => {
   }
 };
 
-// ------------------------------------------------------------------ eindtest
+// ------------------------------------------------------------------ eindtest (stap voor stap, js/eindtest.js)
 function onText(t) {
-  selftestLines.push(`${new Date().toLocaleTimeString('nl-NL')}  ${t}`);
-  $('st-out').textContent = selftestLines.join('\n');
   if (!/EINDTEST|VDD|Accu|NTC|Motor|Nulpunt|uitgang|Buzzer|BLE|Regen|DIP|Ingangen|MCU|Stroom/.test(t)) snack(t);
 }
-$('st-start').onclick = async () => {
-  selftestLines = [];
-  $('st-out').textContent = '';
-  await req(OP.SELFTEST);
-};
-$('st-save').onclick = () => {
-  if (!selftestLines.length) { snack('Nog geen eindtest gedaan'); return; }
-  const head = `Eindtest Vlakkelichtkoepel besturing\nPrint: ${info?.name}\nHardware: ${info?.hw}\nFirmware: ${info?.fw} (${info?.built})\nDatum: ${new Date().toLocaleString('nl-NL')}\n\n`;
-  download(`eindtest_${info?.name || 'print'}_${stamp()}.txt`, head + selftestLines.join('\n') + '\n');
-};
+eindtest = initEindtest({
+  $, el, req, snack, download, stamp,
+  getInfo: () => info, getStatus: () => status, getCfg: () => cfg, connected: () => !!dev,
+});
 
 // ------------------------------------------------------------------ update
 $('fw-file').onchange = async (e) => {
