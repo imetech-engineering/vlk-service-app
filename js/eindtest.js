@@ -2,7 +2,7 @@
 // wat hij ziet, hoort of meet. Automatische stappen keuren zelf goed.
 // IMeTech Engineering, project 5008
 import { ICON } from './icons.js';
-import { OP, FLAGS } from './vlk.js';
+import { OP, FLAGS, CMD } from './vlk.js';
 
 const T = { MODE: 0, BUZ: 1, LED1: 2, EXTLED: 3, AUX12: 4, AUX24: 5, RAIN: 6, BOOST: 7, PULSE: 8, READ: 9 };
 const OK = 'ok', FAIL = 'fout', SKIP = 'n.v.t.';
@@ -400,8 +400,17 @@ export function initEindtest(ctx) {
     try {
       await send(T.MODE, 1);
     } catch (e) {
-      ctx.snack(`Eindtest kan niet starten: ${e.message}`);
-      return;
+      // print bezig (motor loopt, bijv. een DICHT van de regensensor): eerst STOP, dan nog een keer
+      if (!/fout 16|bezig/i.test(e.message)) { ctx.snack(`Eindtest kan niet starten: ${e.message}`); return; }
+      try {
+        ctx.snack('Print is bezig, ik stop de motor en probeer het opnieuw');
+        await ctx.req(OP.CMD, new Uint8Array([CMD.STOP]), true);
+        await new Promise((r) => setTimeout(r, 1500));
+        await send(T.MODE, 1);
+      } catch (e2) {
+        ctx.snack(`Eindtest kan niet starten: ${e2.message}`);
+        return;
+      }
     }
     steps = buildSteps();
     results = {};

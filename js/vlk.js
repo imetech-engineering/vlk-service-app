@@ -146,6 +146,7 @@ export function describeLog(e) {
 export const ERRNO = {
   1: 'Alleen met IMeTech-code', 13: 'Geen toegang (verkeerde code of te vaak geprobeerd)',
   22: 'Ongeldige waarde', 134: 'Niet ondersteund door deze firmware', 12: 'Geen plaats meer', 2: 'Niet gevonden',
+  16: 'Print is bezig (motor loopt of zelftest)',
 };
 
 export function hex(bytes) { return [...bytes].map((x) => x.toString(16).padStart(2, '0')).join(''); }
@@ -218,16 +219,33 @@ export class VlkDevice extends EventTarget {
     this.dispatchEvent(new CustomEvent('samples', { detail: { t0, ma } }));
   }
 
-  // Aanvragen na elkaar (de print verwerkt ze in volgorde)
+  // Aanvragen na elkaar (de print verwerkt ze in volgorde). Een aanvraag is pas klaar als zowel het
+  // schrijven (GATT) als het antwoord van de print binnen is: het antwoord kan eerder binnenkomen dan de
+  // schrijfbevestiging, en een volgende schrijfactie geeft dan "GATT operation already in progress".
   request(op, payload = new Uint8Array(0)) {
-    const run = () => new Promise((resolve, reject) => {
+    const write = async (msg) => {
+      for (let i = 0; ; i++) {
+        try { return await this.ctrl.writeValueWithResponse(msg); } catch (e) {
+          if (i >= 3 || !/in progress/i.test(e?.message || '')) throw e;
+          await new Promise((r) => setTimeout(r, 40 * (i + 1)));
+        }
+      }
+    };
+    const run = () => {
       const seq = (this.seq = (this.seq + 1) & 0xff);
       const msg = new Uint8Array(2 + payload.length);
       msg[0] = op; msg[1] = seq; msg.set(payload, 2);
-      const timer = setTimeout(() => { this.pending.delete(seq); reject(new Error('geen antwoord van de print')); }, 4000);
-      this.pending.set(seq, { resolve, reject, timer });
-      this.ctrl.writeValueWithResponse(msg).catch((e) => { clearTimeout(timer); this.pending.delete(seq); reject(e); });
-    });
+      const answer = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { this.pending.delete(seq); reject(new Error('geen antwoord van de print')); }, 4000);
+        this.pending.set(seq, { resolve, reject, timer });
+      });
+      const written = write(msg).catch((e) => {
+        const p = this.pending.get(seq);
+        if (p) { clearTimeout(p.timer); this.pending.delete(seq); p.reject(e); }
+        throw e;
+      });
+      return Promise.all([answer, written]).then(([a]) => a);
+    };
     const p = this.queue.then(run, run);
     this.queue = p.catch(() => {});
     return p;
