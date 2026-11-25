@@ -203,12 +203,15 @@ export function initEindtest(ctx) {
         show(r.map((x) => cell(x.n, `${sgn(x.d)} mV (${sgn(x.d * 5)} mA)`, '')).join(''));
         const k = r.slice(1, 4);
         const maxCs = Math.max(...k.map((x) => Math.abs(x.d)));
-        const maxOther = Math.max(...k.map((x) => Math.max(Math.abs(x.vdd), Math.abs(x.acc), Math.abs(x.ntc))));
+        // Oordeel op VDD en NTC-pin: die horen niet te bewegen. De ACCU-pin meet de echte ingangsspanning,
+        // die met beide relais aan kan zakken door de voeding en meetsnoeren (25-11: -68 mV); alleen tonen.
+        const maxOther = Math.max(...k.map((x) => Math.max(Math.abs(x.vdd), Math.abs(x.ntc))));
+        const maxAcc = Math.max(...k.map((x) => Math.abs(x.acc)));
         const why = maxCs < 5 ? 'geen invloed' : maxOther < maxCs / 4 ? 'alleen stroomsensor (magnetisch)' : 'andere kanalen schuiven mee (massa/meting)';
         // firmware 0.3.7+: byte 50 = compensatie opgeslagen (1) of niet (0)
         const stored = b.byteLength > 50 ? (dv.getUint8(50) ? ', compensatie opgeslagen' : ', compensatie NIET opgeslagen (M1 los?)') : '';
         done(b.byteLength > 50 && !dv.getUint8(50) ? FAIL : OK,
-          `K1 ${sgn(r[1].d)} mV, K2 ${sgn(r[2].d)} mV, beide ${sgn(r[3].d)} mV, terug ${sgn(r[4].d)} mV; VDD/ACCU/NTC max ${maxOther} mV: ${why}${stored}`);
+          `K1 ${sgn(r[1].d)} mV, K2 ${sgn(r[2].d)} mV, beide ${sgn(r[3].d)} mV, terug ${sgn(r[4].d)} mV; VDD/NTC max ${maxOther} mV, ACCU-pin max ${maxAcc} mV: ${why}${stored}`);
       } });
 
     const pulse = (dir, name) => ({ id: `motor${dir}`, title: `Motor ${name}`, kind: 'ask',
@@ -358,7 +361,7 @@ export function initEindtest(ctx) {
     const pad = (t, n) => (t + ' '.repeat(n)).slice(0, n);
     const lines = [
       'Eindtest Vlakkelichtkoepel besturing (IMeTech Engineering)',
-      `Print: ${i.name || '-'}   Hardware: ${i.hw || '-'}   Firmware: ${i.fw || '-'} (${i.built || '-'})`,
+      `Print: ${i.name || '-'}   Hardware: ${i.hw || '-'}   Firmware: ${i.fw || '-'} (${i.built || '-'})   App: ${ctx.appVersion || '-'}`,
       `Datum: ${new Date().toLocaleString('nl-NL')}   Voeding: ${supply === 'lab' ? 'labvoeding' : supply === 'accu' ? 'accu' : '-'}   Duur: ${Math.round((Date.now() - started) / 60000)} min`,
       `Uitslag: ${verdict}`, '',
       ...list.map(({ s, r }) => `${pad(s.title, 34)} ${pad(r.res, 7)} ${r.detail || ''}`), '',

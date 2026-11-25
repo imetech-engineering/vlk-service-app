@@ -11,7 +11,7 @@ import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
 import { gatewayScript, GATEWAY_SCRIPT_VERSION } from './gateway.js';
 
-export const APP_VERSION = '0.3.7'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.8'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -1134,7 +1134,7 @@ function onText(t) {
 }
 eindtest = initEindtest({
   $, el, req, snack, download, stamp,
-  getInfo: () => info, getStatus: () => status, getCfg: () => cfg, connected: () => !!dev,
+  getInfo: () => info, getStatus: () => status, getCfg: () => cfg, connected: () => !!dev, appVersion: APP_VERSION,
 });
 
 // ------------------------------------------------------------------ update
