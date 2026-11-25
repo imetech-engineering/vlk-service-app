@@ -10,7 +10,7 @@ import {
 import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
 
-export const APP_VERSION = '0.3.3'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.4'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -19,6 +19,7 @@ let dev = null;
 let info = null;
 let cfg = null;
 let status = null;
+let duurBusy = false; // duurtest-opdracht onderweg
 let esDevice = [null, null, null];   // zoals op de print
 let esEdit = [null, null, null];     // in bewerking
 let runs = [];
@@ -108,7 +109,7 @@ const labels = {
   'rem-refresh': ['reset', 'Vernieuwen'],
   'rem-gen': ['key', 'Sleutel maken (gateway)'], 'rem-pair-key': ['plus', 'Koppelen'],
   'rem-pair': ['plus', 'Koppelmodus 30 s'], 'rem-clear': ['trash', 'Alle koppelingen wissen'],
-  'duur-save': ['save', 'Toepassen'], 'log-load': ['download', 'Laden'], 'log-export': ['download', 'CSV'],
+  'duur-save': ['save', 'Interval opslaan'], 'log-load': ['download', 'Laden'], 'log-export': ['download', 'CSV'],
   'log-clear': ['trash', 'Wissen'],
   'fw-pick-lbl': ['upload', 'Bestand kiezen'], 'fw-go': ['upload', 'Update starten'],
 };
@@ -250,7 +251,7 @@ function renderStatus() {
   c.innerHTML = `<div class="k">Stand</div><div class="s">${flags}</div><div class="s">DIP ${[0, 1, 2, 3].map((i) => (s.dip >> i) & 1).join(' ')}, inschakelduur ${s.duty}%, scanprofiel P${s.scan}, ${s.nrem} afstandsbediening(en), RSSI ${s.rssi} dBm, aan ${Math.floor(s.uptime / 60)} min</div>`;
   cards.append(c);
   if (s.flags & FLAGS.DEADMAN) $('hold-mode').checked = true;
-  $('duur-on').checked = !!(s.flags & FLAGS.DUURTEST);
+  if (!duurBusy) $('duur-on').checked = !!(s.flags & FLAGS.DUURTEST);
 }
 
 // ------------------------------------------------------------------ grafiek en opnames
@@ -959,11 +960,32 @@ async function loadCounters() {
   [['OPEN', v[0]], ['DICHT', v[1]], ['Duurtest open', v[2]], ['Duurtest dicht', v[3]], ['Opstarts', v[4]]]
     .forEach(([k, n]) => { const c = el('div', 'card'); c.innerHTML = `<div class="k">${k}</div><div class="v">${n}</div>`; box.append(c); });
 }
+// Duurtest: het vinkje werkt direct; statusupdates zetten het niet terug zolang de opdracht loopt.
+async function setDuurtest(on) {
+  duurBusy = true;
+  $('duur-on').checked = on;
+  try {
+    await req(OP.DUUR, new Uint8Array([on ? 1 : 0]));
+    if (cfg) cfg.duurtest = on ? 1 : 0;
+    if (status) status.flags = on ? status.flags | FLAGS.DUURTEST : status.flags & ~FLAGS.DUURTEST;
+    snack(on ? `Duurtest aan, eerste beweging over 30 s` : 'Duurtest uit', 'Ongedaan maken', () => setDuurtest(!on));
+    loadCounters();
+  } catch (e) {
+    $('duur-on').checked = !on;
+  } finally {
+    duurBusy = false;
+  }
+}
+$('duur-on').onchange = () => setDuurtest($('duur-on').checked);
 $('duur-save').onclick = async () => {
-  const on = $('duur-on').checked;
   const iv = Math.max(30, Number($('duur-int').value) || 300);
-  if (cfg && cfg.duurtest_interval_s !== iv) {
-    const c = { ...cfg, duurtest_interval_s: iv };
+  $('duur-int').value = iv;
+  if (!cfg || cfg.duurtest_interval_s === iv) { snack(`Interval is al ${iv} s`); return; }
+  const c = { ...cfg, duurtest_interval_s: iv };
+  await req(OP.CFG_SET, encodeCfg(c));
+  cfg = c;
+  snack(`Interval ${iv} s opgeslagen`);
+};
     await req(OP.CFG_SET, encodeCfg(c));
     cfg = c;
   }
