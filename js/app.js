@@ -120,7 +120,7 @@ for (const [id, [icon, text]] of Object.entries(labels)) $(id).innerHTML = btnHt
 function setConnected(on) {
   $('btn-connect').innerHTML = on ? btnHtml('x', 'Verbreken') : btnHtml('bt', 'Verbinden');
   $('btn-demo').hidden = on;
-  $('conn-sub').textContent = on ? `${dev.name}${dev.demo ? ' (demo)' : ''}` : 'Niet verbonden';
+  $('conn-sub').textContent = on ? `${dev.name}${dev.demo ? ' (demo)' : ''}` : `Niet verbonden - app ${APP_VERSION}`;
   if (!on) { info = null; wiz.on = false; renderWiz(); applyRole(); eindtest?.reset(); }
   document.querySelectorAll('main button, main input, main select').forEach((e) => {
     if (!e.closest('#tab-calib') && e.id !== 'win') e.disabled = !on;
@@ -1176,6 +1176,7 @@ $('fw-go').onclick = async () => {
 
 // ------------------------------------------------------------------ start
 $('app-ver').textContent = `App-versie ${APP_VERSION}`;
+$('conn-sub').textContent = `Niet verbonden - app ${APP_VERSION}`;
 setConnected(false);
 renderRuns();
 renderCal();
