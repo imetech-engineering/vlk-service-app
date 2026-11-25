@@ -4,7 +4,7 @@
 import { ICON } from './icons.js';
 import { OP, FLAGS, CMD } from './vlk.js';
 
-const T = { MODE: 0, BUZ: 1, LED1: 2, EXTLED: 3, AUX12: 4, AUX24: 5, RAIN: 6, BOOST: 7, PULSE: 8, READ: 9 };
+const T = { MODE: 0, BUZ: 1, LED1: 2, EXTLED: 3, AUX12: 4, AUX24: 5, RAIN: 6, BOOST: 7, PULSE: 8, READ: 9, RELAY_INFL: 10 };
 const OK = 'ok', FAIL = 'fout', SKIP = 'n.v.t.';
 
 export function decodeTestRead(b) {
@@ -186,6 +186,26 @@ export function initEindtest(ctx) {
         const ok = r.zeroOk && Math.abs(r.ma) < 50;
         show(cell('Nulpunt', r.zeroOk ? 'OK' : 'buiten bereik', r.zeroOk ? 'ok' : 'err') + cell('Rust', `${r.ma} mA`, Math.abs(r.ma) < 50 ? 'ok' : 'err'));
         done(ok ? OK : FAIL, `nulpunt ${r.zeroOk ? 'ok' : 'fout'}, rust ${r.ma} mA`);
+      } });
+
+    // Relaisinvloed op de stroomsensor (schijnstroom U9 RevB0): alleen meten, keurt niet af.
+    // Firmware 0.3.6+; oudere firmware geeft een fout en dan is de stap n.v.t.
+    s.push({ id: 'relais', title: 'Relaisinvloed stroomsensor', kind: 'auto',
+      text: 'Haal de motor of testlast los van M1. De relais gaan kort aan (uit, K1, K2, beide); de app meet wat de stroomsensor ziet en vergelijkt met VDD, de ACCU-pin en de NTC-pin.',
+      run: async (done) => {
+        let b;
+        try { b = await send(T.RELAY_INFL); } catch (e) { done(SKIP, 'niet in deze firmware'); return; }
+        const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+        const names = ['uit', 'K1', 'K2', 'K1+K2', 'uit'];
+        const r = names.map((n, k) => ({ n, cs: dv.getInt16(k * 10, true), d: dv.getInt16(k * 10 + 2, true),
+          vdd: dv.getInt16(k * 10 + 4, true), acc: dv.getInt16(k * 10 + 6, true), ntc: dv.getInt16(k * 10 + 8, true) }));
+        const sgn = (v) => (v > 0 ? `+${v}` : `${v}`);
+        show(r.map((x) => cell(x.n, `${sgn(x.d)} mV (${sgn(x.d * 5)} mA)`, '')).join(''));
+        const k = r.slice(1, 4);
+        const maxCs = Math.max(...k.map((x) => Math.abs(x.d)));
+        const maxOther = Math.max(...k.map((x) => Math.max(Math.abs(x.vdd), Math.abs(x.acc), Math.abs(x.ntc))));
+        const why = maxCs < 5 ? 'geen invloed' : maxOther < maxCs / 4 ? 'alleen stroomsensor (magnetisch)' : 'andere kanalen schuiven mee (massa/meting)';
+        done(OK, `K1 ${sgn(r[1].d)} mV, K2 ${sgn(r[2].d)} mV, beide ${sgn(r[3].d)} mV, terug ${sgn(r[4].d)} mV; VDD/ACCU/NTC max ${maxOther} mV: ${why}`);
       } });
 
     const pulse = (dir, name) => ({ id: `motor${dir}`, title: `Motor ${name}`, kind: 'ask',
