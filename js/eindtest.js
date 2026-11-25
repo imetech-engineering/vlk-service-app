@@ -188,10 +188,10 @@ export function initEindtest(ctx) {
         done(ok ? OK : FAIL, `nulpunt ${r.zeroOk ? 'ok' : 'fout'}, rust ${r.ma} mA`);
       } });
 
-    // Relaisinvloed op de stroomsensor (schijnstroom U9 RevB0): alleen meten, keurt niet af.
-    // Firmware 0.3.6+; oudere firmware geeft een fout en dan is de stap n.v.t.
+    // Relaisinvloed op de stroomsensor (schijnstroom U9 RevB0). Firmware 0.3.6 meet alleen; 0.3.7+
+    // slaat de offset op als compensatie (stap fout als dat niet lukt). Oudere firmware: n.v.t.
     s.push({ id: 'relais', title: 'Relaisinvloed stroomsensor', kind: 'auto',
-      text: 'Haal de motor of testlast los van M1. De relais gaan kort aan (uit, K1, K2, beide); de app meet wat de stroomsensor ziet en vergelijkt met VDD, de ACCU-pin en de NTC-pin.',
+      text: 'Haal de motor of testlast los van M1. De relais gaan kort aan (uit, K1, K2, beide); de app meet wat de stroomsensor ziet en vergelijkt met VDD, de ACCU-pin en de NTC-pin. Vanaf firmware 0.3.7 slaat de print dit op als compensatie. Sluit daarna de motor of testlast aan voor de motorpulsen.',
       run: async (done) => {
         let b;
         try { b = await send(T.RELAY_INFL); } catch (e) { done(SKIP, 'niet in deze firmware'); return; }
@@ -205,7 +205,10 @@ export function initEindtest(ctx) {
         const maxCs = Math.max(...k.map((x) => Math.abs(x.d)));
         const maxOther = Math.max(...k.map((x) => Math.max(Math.abs(x.vdd), Math.abs(x.acc), Math.abs(x.ntc))));
         const why = maxCs < 5 ? 'geen invloed' : maxOther < maxCs / 4 ? 'alleen stroomsensor (magnetisch)' : 'andere kanalen schuiven mee (massa/meting)';
-        done(OK, `K1 ${sgn(r[1].d)} mV, K2 ${sgn(r[2].d)} mV, beide ${sgn(r[3].d)} mV, terug ${sgn(r[4].d)} mV; VDD/ACCU/NTC max ${maxOther} mV: ${why}`);
+        // firmware 0.3.7+: byte 50 = compensatie opgeslagen (1) of niet (0)
+        const stored = b.byteLength > 50 ? (dv.getUint8(50) ? ', compensatie opgeslagen' : ', compensatie NIET opgeslagen (M1 los?)') : '';
+        done(b.byteLength > 50 && !dv.getUint8(50) ? FAIL : OK,
+          `K1 ${sgn(r[1].d)} mV, K2 ${sgn(r[2].d)} mV, beide ${sgn(r[3].d)} mV, terug ${sgn(r[4].d)} mV; VDD/ACCU/NTC max ${maxOther} mV: ${why}${stored}`);
       } });
 
     const pulse = (dir, name) => ({ id: `motor${dir}`, title: `Motor ${name}`, kind: 'ask',
