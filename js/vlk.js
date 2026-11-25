@@ -173,13 +173,21 @@ export class VlkDevice extends EventTarget {
   }
 
   async connect() {
-    this.dev = await navigator.bluetooth.requestDevice({
+    const d = await navigator.bluetooth.requestDevice({
       // alleen op de service-UUID: die zendt de print alleen uit als het servicevenster open is,
       // dus buiten het venster staat hij niet in de lijst (naam kan door de telefoon gecachet zijn)
       filters: [{ services: [UUID_SVC] }],
       optionalServices: [UUID_SVC, UUID_SMP_SVC],
     });
-    this.dev.addEventListener('gattserverdisconnected', () => this.dispatchEvent(new Event('disconnected')));
+    return this.open(d);
+  }
+
+  // Opnieuw verbinden met een eerder gekozen print (zonder keuzelijst), bijv. na een update.
+  // Lukt alleen als de print verbindbaar is: na een update opent firmware 0.3.10+ zelf 2 min
+  // een servicevenster voor al gekoppelde telefoons.
+  async open(d) {
+    this.dev = d;
+    this.dev.addEventListener('gattserverdisconnected', () => this.dispatchEvent(new Event('disconnected')), { once: true });
     this.server = await this.dev.gatt.connect();
     const svc = await this.server.getPrimaryService(UUID_SVC);
     this.ctrl = await svc.getCharacteristic(UUID_CTRL);

@@ -11,7 +11,7 @@ import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
 import { gatewayScript, GATEWAY_SCRIPT_VERSION } from './gateway.js';
 
-export const APP_VERSION = '0.3.8'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.9'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -1165,14 +1165,57 @@ $('fw-go').onclick = async () => {
     await smp.open();
     const t0 = performance.now();
     await smp.upload(fwImage, (f) => { prog.value = f; });
+    const want = `${fwImage[20]}.${fwImage[21]}.${new DataView(fwImage.buffer).getUint16(22, true)}`;
+    const btDev = dev.dev;
     await smp.testAndReset();
-    snack(`Upload klaar in ${((performance.now() - t0) / 1000).toFixed(0)} s; de print start opnieuw. Verbind daarna opnieuw en controleer de versie.`, null, null, 10000);
+    snack(`Upload klaar in ${((performance.now() - t0) / 1000).toFixed(0)} s. De print herstart; opnieuw verbinden...`, null, null, 60000);
+    await afterUpdate(btDev, want);
   } catch (e) {
     snack(`Update mislukt: ${e.message}`);
   } finally {
     $('fw-go').disabled = false;
   }
 };
+
+// Na de upload: wachten tot de print herstart, zelf opnieuw verbinden (firmware 0.3.10+ opent dan
+// 2 min een servicevenster voor gekoppelde telefoons) en controleren dat de nieuwe versie draait
+// en bevestigd is. Oudere firmware: geen venster, dan blijft het bij de melding.
+async function afterUpdate(btDev, want) {
+  const t0 = Date.now();
+  while (dev && Date.now() - t0 < 15000) await new Promise((r) => setTimeout(r, 500));
+  if (dev) { dev.disconnect(); dev = null; setConnected(false); }
+  await new Promise((r) => setTimeout(r, 4000)); // MCUboot verplaatst de image (ca. 2 s) en start
+  const t1 = Date.now();
+  while (!dev && Date.now() - t1 < 120000) {
+    try {
+      dev = await new VlkDevice().open(btDev);
+      await onConnected();
+    } catch {
+      dev = null;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  if (!dev) {
+    snack('Print herstart, maar opnieuw verbinden lukte niet. Druk de servicetoets in, verbind en controleer de versie onder Update.', null, null, 15000);
+    return;
+  }
+  let confirmed = null;
+  try {
+    const smp = new Smp(dev.server);
+    await smp.open();
+    const st = await smp.imageState();
+    const s0 = (st.images || []).find((x) => x.slot === 0);
+    confirmed = s0 ? !!s0.confirmed : null;
+  } catch { /* oudere firmware of geen SMP: alleen de versie */ }
+  const fw = info?.fw || '?';
+  if (fw === want && confirmed !== false) {
+    snack(`Update geslaagd: firmware ${fw} draait en is bevestigd.`, null, null, 15000);
+  } else if (fw === want) {
+    snack(`Firmware ${fw} draait maar is NIET bevestigd: bij de volgende herstart gaat de print terug. Zie de UART-log.`, null, null, 20000);
+  } else {
+    snack(`Update niet gelukt: de print draait ${fw} in plaats van ${want} (image geweigerd of teruggezet).`, null, null, 20000);
+  }
+}
 
 // ------------------------------------------------------------------ start
 $('app-ver').textContent = `App-versie ${APP_VERSION}`;
