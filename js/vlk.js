@@ -122,20 +122,24 @@ export function decodeLog(b) {
   }
   return out;
 }
+// afstandsbediening in het foutlog (firmware 0.3.5+): c = index + 1
+function dipBits(d) { return [0, 1, 2, 3].map((i) => (d >> i) & 1).join(''); }
+function remName(i) { return `afstandsbediening ${i}`; } // zelfde nummering als "afstandsbediening n gekoppeld"
 export function describeLog(e) {
   const cmd = ['-', 'OPEN', 'DICHT', 'STOP'][e.a] || e.a;
   switch (e.type) {
     case 1: return `firmware ${e.c >> 16}.${(e.c >> 8) & 255}.${e.c & 255}, reset 0x${e.a.toString(16)}`;
-    case 2: return `${cmd} van ${SRC_NAMES[e.b] || e.b}`;
+    case 2: return `${cmd} van ${e.b === 1 && e.c ? remName(e.c - 1) : SRC_NAMES[e.b] || e.b}`;
     case 3: return `${e.b & 1 ? 'DICHT' : 'OPEN'} ${(e.c / 1000).toFixed(1)} s, ${RES[e.a] || e.a}, ${STOP_REASON[e.b >> 1] || ''}`;
     case 4: return `piek ${e.b} mA, gem ${e.c >>> 16} mA, na stop ${e.c & 0xffff} mA`;
     case 5: return FAULTS.filter(([bit]) => e.c & bit).map(([, n]) => n).join(', ') || `0x${e.c.toString(16)}`;
     case 6: return e.a ? 'nat' : 'droog';
     case 7: return `${e.a ? 'te laag' : 'hersteld'}, ${(e.c / 1000).toFixed(2)} V`;
-    case 8: return `afstandsbediening ${e.a} gekoppeld${e.b ? ' (versleuteld)' : ''}`;
-    case 9: return ['instellingen', `kalibratie profiel ${e.b}`, 'pincode', 'nieuwe gateway-statussleutel', 'telefoons vergeten', 'fabrieksinstellingen'][e.a] || `soort ${e.a}`;
+    case 8: return e.a === 255 ? 'knop zelf koppelen mislukt (zie UART-log)' : `afstandsbediening ${e.a} gekoppeld${e.b ? ' (versleuteld)' : ''}`;
+    case 9: return ['instellingen', `kalibratie profiel ${e.b}`, 'pincode', 'nieuwe gateway-statussleutel', 'telefoons vergeten', 'fabrieksinstellingen',
+      `DIP gewijzigd: ${dipBits(e.c >> 8)} naar ${dipBits(e.c & 15)}`][e.a] || `soort ${e.a}`;
     case 10: return e.a ? 'aan' : 'uit';
-    case 11: return e.a ? 'time-out (geen signaal)' : 'losgelaten';
+    case 11: return (e.a ? 'time-out (geen signaal)' : 'losgelaten') + (e.c ? `, ${e.c} keer vastgehouden-signaal` : '');
     case 12: return e.a ? 'geslaagd' : `niet geslaagd (0x${e.c.toString(16)})`;
     case 13: return ['telefoon koppelen mislukt', 'telefoon gekoppeld', 'IMeTech ontgrendeld', 'verkeerde IMeTech-code'][e.a] + (e.c ? ` (${e.c}x)` : '');
     default: return `a=${e.a} b=${e.b} c=${e.c}`;
@@ -340,11 +344,12 @@ export class DemoDevice extends EventTarget {
     await new Promise((r) => setTimeout(r, 40));
     switch (op) {
       case OP.INFO: {
-                const out = new Uint8Array(54);
+                const out = new Uint8Array(60);
         out.set([0, 1, 0, this.st.dip, this.st.profile, 1, 2, ES_SIZE, 1]);
         out.set(new TextEncoder().encode('RevB0'), 9); out.set(new TextEncoder().encode(this.name), 17);
         out.set(new TextEncoder().encode('demo'), 33);
         out[53] = this.role;
+        out.set([0xF8, 0xFC, 0x54, 0x4D, 0xAA, 0x6A], 54);
         return out;
       }
       case OP.STATUS: return encodeStatus(this.st);

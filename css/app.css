@@ -151,3 +151,8 @@ button.big { padding: 14px 20px; font-size: 16px; min-width: 120px; }
 .ab-step.done b { border-color: var(--ok); background: var(--ok); color: #fff; }
 details.panel summary { cursor: pointer; }
 details.panel[open] summary { margin-bottom: 10px; }
+
+/* gateway instellen: waarde met kopieerknop */
+.gw-copy { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 6px 8px; margin: 8px 0; }
+.gw-copy .k { grid-column: 1 / -1; }
+.gw-copy .code { margin-top: 0; }

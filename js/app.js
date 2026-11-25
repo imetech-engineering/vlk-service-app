@@ -9,8 +9,9 @@ import {
 } from './vlk.js';
 import { Smp } from './smp.js';
 import { initEindtest } from './eindtest.js';
+import { gatewayScript, GATEWAY_SCRIPT_VERSION } from './gateway.js';
 
-export const APP_VERSION = '0.3.4'; // gelijk houden met sw.js
+export const APP_VERSION = '0.3.5'; // gelijk houden met sw.js
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const btnHtml = (icon, text) => `${ICON[icon] || ''}<span>${text}</span>`;
@@ -187,7 +188,8 @@ async function onConnected() {
     const td = new TextDecoder();
     info = { fw: `${i[0]}.${i[1]}.${i[2]}`, dip: i[3], profile: i[4], cfgVer: i[5], esVer: i[6], esN: i[7], sim: !!i[8],
       hw: td.decode(i.slice(9, 17)).replace(/\0.*$/, ''), name: td.decode(i.slice(17, 33)).replace(/\0.*$/, ''),
-      built: td.decode(i.slice(33, 53)).replace(/\0.*$/, ''), role: i.length > 53 ? i[53] : ROLE.INSTALLER };
+      built: td.decode(i.slice(33, 53)).replace(/\0.*$/, ''), role: i.length > 53 ? i[53] : ROLE.INSTALLER,
+      mac: i.length >= 60 ? [...i.slice(54, 60)].map((x) => x.toString(16).padStart(2, '0').toUpperCase()).join(':') : '' };
     if (info.esN !== ES_SIZE || info.esVer !== 2) snack('Let op: andere versie eindherkenning in de firmware; update de app');
     $('fw-current').textContent = `Huidige firmware ${info.fw} (${info.built}), ${info.hw}`;
     applyRole();
@@ -890,7 +892,8 @@ function renderAb() {
   const row = el('div', 'row wrap wz-btns');
   const mk = (cls, icon, text, fn) => { const b = el('button', cls, `${ICON[icon] || ''}<span>${text}</span>`); b.onclick = fn; b.disabled = !dev; row.append(b); return b; };
   if (ab.step === 0) {
-    body.innerHTML = 'Koppel een Shelly BLU RC Button 4 (ZB) in drie stappen. Je hebt alleen deze app nodig.';
+    body.innerHTML = `<p>Koppel een Shelly BLU RC Button 4 (ZB) in drie stappen met deze app.</p>
+      <p class="muted small-text">Zonder app (firmware 0.3.5 of nieuwer): druk op de servicetoets, druk dan 4x kort op de knop (blauw knipperen) en houd hem bij de print. De print piept 1x lang: druk dan 1x op een knop. 2 piepjes = gekoppeld, 3 korte = mislukt.</p>`;
     mk('primary big', 'plus', 'Koppelen starten', () => { ab.step = 1; ab.err = ''; renderAb(); });
   } else if (ab.step === 1) {
     body.innerHTML = '<p>Druk <b>4x kort</b> op een knop van de afstandsbediening.</p><p>Het lampje gaat <b>blauw knipperen</b> (1 minuut).</p><p class="muted small-text">Oudere RC Button 4 (zonder ZB): een knop 10 s vasthouden.</p>';
@@ -950,6 +953,114 @@ async function abWait() {
 }
 renderAb();
 
+// ------------------------------------------------------------------ Shelly-gateway instellen
+// Stap voor stap: gateway klaarzetten, status (BTHome met adres en statussleutel), virtuele
+// knoppen, script met sleutel kopieren, koppelen. De sleutel blijft alleen in deze wizard.
+const gw = { step: 0, key: '', skey: '', msg: '' };
+function copyText(text, what) {
+  if (!text) return;
+  navigator.clipboard?.writeText(text).then(() => snack(`${what} gekopieerd`)).catch(() => snack('Kopiëren lukt niet; selecteer de tekst'));
+}
+function codeRow(label, text, what) {
+  const r = el('div', 'gw-copy');
+  r.innerHTML = `<div class="k small-text muted">${label}</div><div class="code">${text || '-'}</div>`;
+  const b = el('button', 'ghost small', `${ICON.copy || ''}<span>Kopiëren</span>`);
+  b.onclick = () => copyText(text, what);
+  b.disabled = !text;
+  r.append(b);
+  return r;
+}
+function renderGw() {
+  const root = $('gw-root');
+  if (!root) return;
+  root.innerHTML = '';
+  const steps = ['Gateway', 'Status', 'Knoppen', 'Script', 'Koppelen'];
+  if (gw.step > 0 && gw.step < 6) {
+    const head = el('div', 'ab-steps');
+    steps.forEach((t, i) => head.append(el('div', `ab-step ${gw.step === i + 1 ? 'on' : gw.step > i + 1 ? 'done' : ''}`, `<b>${i + 1}</b><span>${t}</span>`)));
+    root.append(head);
+  }
+  const body = el('div', 'wz-text');
+  const row = el('div', 'row wrap wz-btns');
+  const mk = (cls, icon, text, fn) => { const b = el('button', cls, `${ICON[icon] || ''}<span>${text}</span>`); b.onclick = fn; b.disabled = !dev; row.append(b); return b; };
+  const next = () => { gw.step++; renderGw(); };
+  const back = () => { gw.step--; renderGw(); };
+  if (gw.step === 0) {
+    body.innerHTML = `<p>Status en bediening via een Shelly BLU Gateway Gen3, in vijf stappen.</p>
+      <p class="muted small-text">Je hebt de <b>webinterface van de gateway</b> nodig: een browser op hetzelfde wifi-netwerk, met het IP-adres van de gateway (Shelly-app of router). "Add device" in de Shelly-app vindt de print niet.</p>`;
+    mk('primary big', 'plus', 'Starten', async () => {
+      gw.key = hex(crypto.getRandomValues(new Uint8Array(16)));
+      gw.skey = '';
+      try { const k = await req(OP.STATUS_KEY, new Uint8Array([0])); gw.skey = k.length === 16 ? hex(k) : ''; } catch { /* melding via req */ }
+      gw.step = 1; renderGw();
+    });
+  } else if (gw.step === 1) {
+    body.innerHTML = `<p>In de <b>Shelly-app</b>: gateway toevoegen en wifi instellen, firmware bijwerken.</p>
+      <p>In de <b>webinterface</b> van de gateway:</p>
+      <ul><li>Settings: een <b>wachtwoord</b> instellen (wie bij de gateway kan, kan de koepel bedienen)</li>
+      <li>Settings, Bluetooth: <b>Enable Bluetooth</b> en <b>Enable Bluetooth gateway</b> aan</li></ul>`;
+    mk('primary', 'check', 'Gedaan', next);
+    mk('ghost', 'x', 'Stoppen', () => { gw.step = 0; renderGw(); });
+  } else if (gw.step === 2) {
+    body.innerHTML = `<p>Webinterface: <b>Components</b>, Bluetooth (BTHome) devices, <b>+</b>, <b>Add a device by MAC address</b>. Plak het adres en kies <b>Add</b> (geen model nodig).</p>
+      <p>Open het nieuwe apparaat (tandwiel) en plak de statussleutel bij <b>Decryption key</b>. Save.</p>
+      <p class="muted small-text">Binnen een minuut verschijnen Temperature, Voltage, Opening en Moisture_status. Zet ze met <b>Create new group</b> in een groep, bijv. "Vlakkelichtkoepel".${info?.mac ? '' : ' Deze firmware geeft het adres nog niet door: het staat in het opstartlog als "Identity".'}</p>`;
+    body.append(codeRow('Bluetooth-adres van de print', info?.mac || '', 'Adres'));
+    body.append(codeRow('Statussleutel (Decryption key)', gw.skey, 'Statussleutel'));
+    mk('primary', 'check', 'Gedaan', next);
+    mk('ghost', 'back', 'Terug', back);
+  } else if (gw.step === 3) {
+    body.innerHTML = `<p>Webinterface: <b>Components</b>, User-defined components, <b>Create new</b>, <b>Button</b>. Maak er drie, in deze volgorde: <b>Open</b>, <b>Dicht</b>, <b>Stop</b> (groep Vlakkelichtkoepel).</p>
+      <p class="muted small-text">Controleer dat de ID's <b>button:200</b>, <b>button:201</b> en <b>button:202</b> zijn. Anders klopt de regel MAP in het script niet.</p>`;
+    mk('primary', 'check', 'Gedaan', next);
+    mk('ghost', 'back', 'Terug', back);
+  } else if (gw.step === 4) {
+    body.innerHTML = `<p>Webinterface: <b>Scripts</b>, <b>Create script</b>, naam <b>vlk_gateway</b>. Plak het hele script (de sleutel staat er al in), dan <b>Save</b> en <b>Start</b>. Zet in de scriptlijst <b>Run on startup</b> aan.</p>
+      <p class="muted small-text">In de scriptlog moet "VLK gateway gestart" staan. Script versie ${GATEWAY_SCRIPT_VERSION}. De sleutel is geheim: deel het script niet.</p>`;
+    mk('primary', 'copy', 'Script kopiëren', () => copyText(gatewayScript(gw.key), 'Script'));
+    mk('ghost', 'check', 'Script draait', next);
+    mk('ghost', 'back', 'Terug', back);
+  } else if (gw.step === 5) {
+    const left = gw.until ? Math.max(0, Math.round((gw.until - Date.now()) / 1000)) : 0;
+    body.innerHTML = gw.until && left > 0
+      ? `<p>Druk nu in de webinterface op de virtuele knop <b>Open</b>.</p><p class="muted">De print piept 2x als de gateway gekoppeld is. Nog ${left} s.</p>`
+      : `<p>Tik op <b>Koppelen</b> en druk binnen 60 s in de webinterface op <b>Open</b>.</p>`;
+    if (!(gw.until && left > 0)) {
+      mk('primary big', 'plus', 'Koppelen', async () => {
+        try {
+          gw.before = (await loadRemotes()).length;
+          await pairWithKey(gw.key);
+          gw.until = Date.now() + 60000;
+          renderGw();
+          gwWait();
+        } catch (e) { snack(e.message); }
+      });
+      mk('ghost', 'back', 'Terug', back);
+    }
+  } else if (gw.step === 6) {
+    body.innerHTML = `<div class="wz-result good"><h3>Gateway gekoppeld</h3></div>
+      <p><b>Koppel de app nu los</b>: zolang de app verbonden is, komen opdrachten van de gateway niet aan. Test daarna Open, Dicht en Stop in de webinterface of de Shelly-app.</p>`;
+    mk('ghost', 'check', 'Klaar', () => { gw.step = 0; gw.key = ''; gw.until = 0; renderGw(); });
+  } else if (gw.step === 7) {
+    body.innerHTML = '<div class="wz-result bad"><h3>Niet gekoppeld</h3><p class="muted">Binnen 60 s kwam er geen bericht van de gateway. Draait het script (scriptlog) en staat de sleutel erin?</p></div>';
+    mk('primary', 'reset', 'Opnieuw', () => { gw.step = 5; gw.until = 0; renderGw(); });
+  }
+  root.append(body, row);
+}
+async function gwWait() {
+  while (gw.step === 5 && gw.until) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (gw.step !== 5) return;
+    try {
+      const list = await loadRemotes();
+      if (list.length > gw.before) { gw.step = 6; gw.until = 0; renderGw(); return; }
+    } catch { /* volgende keer */ }
+    if (Date.now() > gw.until) { gw.step = 7; gw.until = 0; renderGw(); return; }
+    renderGw();
+  }
+}
+renderGw();
+
 // ------------------------------------------------------------------ log en tellers
 async function loadCounters() {
   const b = await req(OP.COUNTERS);
@@ -985,14 +1096,6 @@ $('duur-save').onclick = async () => {
   await req(OP.CFG_SET, encodeCfg(c));
   cfg = c;
   snack(`Interval ${iv} s opgeslagen`);
-};
-    await req(OP.CFG_SET, encodeCfg(c));
-    cfg = c;
-  }
-  await req(OP.DUUR, new Uint8Array([on ? 1 : 0]));
-  if (cfg) cfg.duurtest = on ? 1 : 0;
-  snack(on ? `Duurtest aan, elke ${iv} s` : 'Duurtest uit');
-  loadCounters();
 };
 $('log-load').onclick = async () => {
   const cb = await req(OP.LOG_COUNT);
